@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"thanhnt208/pg-cdc-es/internal/models"
-	"time"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -12,7 +11,6 @@ import (
 type IAuditPostgresRepository interface {
 	GetUnprocessedLogs(ctx context.Context, limit int) ([]models.AuditLog, *sqlx.Tx, error)
 	MarkLogsProcessed(tx *sqlx.Tx, ids []int64) error
-	ResetFailedLogs(ctx context.Context, timeout time.Duration) error
 }
 
 type AuditPostgresRepository struct {
@@ -64,16 +62,5 @@ func (r *AuditPostgresRepository) MarkLogsProcessed(tx *sqlx.Tx, ids []int64) er
 
 	query = r.db.Rebind(query)
 	_, err = tx.Exec(query, args...)
-	return err
-}
-
-func (r *AuditPostgresRepository) ResetFailedLogs(ctx context.Context, timeout time.Duration) error {
-	query := `
-		UPDATE audit_log SET processed = FALSE
-		WHERE processed = TRUE AND created_at <= $1
-	`
-
-	timeThreshold := time.Now().Add(-timeout)
-	_, err := r.db.ExecContext(ctx, query, timeThreshold)
 	return err
 }

@@ -57,21 +57,6 @@ func (s *SyncService) Start(ctx context.Context) error {
 		go s.worker(ctx, jobs, &wg)
 	}
 
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := s.auditPgRepo.ResetFailedLogs(ctx, 10*time.Minute); err != nil {
-					s.logger.Error("Failed to reset failed logs", "error", err)
-				}
-			}
-		}
-	}()
-
 	for {
 		select {
 		case <-ctx.Done():

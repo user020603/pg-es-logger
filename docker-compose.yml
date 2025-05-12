@@ -5,9 +5,9 @@ services:
     image: postgres:latest
     container_name: postgres
     environment:
-      PG_USER: postgres
-      PG_PASSWORD: postgres
-      PG_DBNAME: auditdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: auditdb
     ports:
       - "5432:5432"
     volumes:
