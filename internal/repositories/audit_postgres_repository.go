@@ -36,7 +36,7 @@ func (r *AuditPostgresRepository) GetUnprocessedLogs(ctx context.Context, limit 
 
 	query := `
 		SELECT id, table_name, operation, old_data, new_data, created_at, processed
-		FROM auditdb
+		FROM audit_log
 		WHERE processed = FALSE
 		ORDER BY created_at
 		LIMIT $1
@@ -53,17 +53,23 @@ func (r *AuditPostgresRepository) GetUnprocessedLogs(ctx context.Context, limit 
 
 func (r *AuditPostgresRepository) MarkLogsProcessed(tx *sqlx.Tx, ids []int64) error {
 	query := `
-		UPDATE auditdb SET processed = TRUE
-		WHERE id = ANY($1)
+		UPDATE audit_log SET processed = TRUE
+		WHERE id IN (?)
 	`
 
-	_, err := tx.Exec(query, ids)
+	query, args, err := sqlx.In(query, ids)
+	if err != nil {
+		return err
+	}
+
+	query = r.db.Rebind(query)
+	_, err = tx.Exec(query, args...)
 	return err
 }
 
 func (r *AuditPostgresRepository) ResetFailedLogs(ctx context.Context, timeout time.Duration) error {
 	query := `
-		UPDATE auditdb SET processed = FALSE
+		UPDATE audit_log SET processed = FALSE
 		WHERE processed = TRUE AND created_at <= $1
 	`
 

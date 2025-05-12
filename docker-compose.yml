@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      PG_DBNAME: auditdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: kibana
+    environment:
+      - ES_ADDRESS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  sync-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sync-service
+    environment:
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=postgres
+      - PG_PASSWORD=postgres
+      - PG_DBNAME=auditdb
+      - ES_ADDRESS=http://elasticsearch:9200
+      - ES_INDEX=pg_audit_logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./log:/app/log
+
+volumes:
+  pg_data:
+  es_data:
