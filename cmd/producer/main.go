@@ -9,6 +9,7 @@ import (
 	"thanhnt208/pg-cdc-es/configs"
 	"thanhnt208/pg-cdc-es/internal/repositories"
 	"thanhnt208/pg-cdc-es/internal/services"
+	"thanhnt208/pg-cdc-es/pkg/kafka"
 	"thanhnt208/pg-cdc-es/pkg/logger"
 
 	"github.com/joho/godotenv"
@@ -31,24 +32,20 @@ func main() {
 
 	pgAuditRepo := repositories.NewAuditPostgresRepository(pgConn)
 
-	esClient, err := configs.ConnectElasticsearch()
+	kafkaWriterRaw, err := configs.ConnectKafkaWriter()
 	if err != nil {
-		logger.Error("failed to connect to Elasticsearch", "error", err)
+		logger.Error("failed to connect to Kafka", "error", err)
 		return
 	}
-
-	esIndex := getEnv("ES_INDEX", "pg_audit_logs")
-	esAuditRepo, err := repositories.NewAuditESRepository(esClient, esIndex, logger)
-	if err != nil {
-		logger.Fatal("Failed to create Elasticsearch repository: %v", err)
-	}
+	defer kafkaWriterRaw.Close()
+	kafkaWriter := kafka.NewKafkaWriter(kafkaWriterRaw)
 
 	batchSize := getEnvAsInt("BATCH_SIZE", 1000)
 	numWorkers := getEnvAsInt("NUM_WORKERS", 5)
 
-	syncService := services.NewSyncService(
+	producerService := services.NewSyncProducerService(
 		pgAuditRepo,
-		esAuditRepo,
+		kafkaWriter,
 		batchSize,
 		numWorkers,
 		logger,
@@ -66,19 +63,12 @@ func main() {
 		cancel()
 	}()
 
-	logger.Info("Starting sync service...")
-	if err := syncService.Start(ctx); err != nil {
-		logger.Error("Failed to start sync service", "error", err)
+	logger.Info("Starting Kafka producer service...")
+	if err := producerService.Start(ctx); err != nil {
+		logger.Error("Producer service stopped with error", "error", err)
 		return
 	}
-	logger.Info("Sync service stopped")
-}
-
-func getEnv(key, defaultValue string) string {
-	if value, exists := os.LookupEnv(key); exists {
-		return value
-	}
-	return defaultValue
+	logger.Info("Producer service stopped")
 }
 
 func getEnvAsInt(key string, defaultValue int) int {

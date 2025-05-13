@@ -1,6 +1,31 @@
 version: "3.8"
 
 services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+
   postgres:
     image: postgres:latest
     container_name: postgres
@@ -47,26 +72,53 @@ services:
       elasticsearch:
         condition: service_healthy
 
-  sync-service:
+  producer-service:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: sync-service
+      dockerfile: ./cmd/producer/Dockerfile
+    container_name: producer-service
     environment:
       - PG_HOST=postgres
       - PG_PORT=5432
       - PG_USER=postgres
       - PG_PASSWORD=postgres
       - PG_DBNAME=auditdb
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_TOPIC=audit-logs
+      - KAFKA_GROUP_ID=sync-group
+      - BATCH_SIZE=1000
+      - NUM_WORKERS=5
       - ES_ADDRESS=http://elasticsearch:9200
       - ES_INDEX=pg_audit_logs
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_started
+
+  consumer-service:
+    build:
+      context: .
+      dockerfile: ./cmd/consumer/Dockerfile
+    container_name: consumer-service
+    environment:
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=postgres
+      - PG_PASSWORD=postgres
+      - PG_DBNAME=auditdb
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_TOPIC=audit-logs
+      - KAFKA_GROUP_ID=sync-group
+      - BATCH_SIZE=1000
+      - NUM_WORKERS=5
+      - ES_ADDRESS=http://elasticsearch:9200
+      - ES_INDEX=pg_audit_logs
+    depends_on:
       elasticsearch:
         condition: service_healthy
-    volumes:
-      - ./log:/app/log
+      kafka:
+        condition: service_started
 
 volumes:
   pg_data:

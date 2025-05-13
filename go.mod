@@ -1,6 +1,6 @@
 module thanhnt208/pg-cdc-es
 
-go 1.21.6
+go 1.24.1
 
 require (
 	github.com/elastic/go-elasticsearch/v8 v8.18.0
