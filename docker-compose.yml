@@ -85,11 +85,8 @@ services:
       - PG_DBNAME=auditdb
       - KAFKA_BROKERS=kafka:9092
       - KAFKA_TOPIC=audit-logs
-      - KAFKA_GROUP_ID=sync-group
       - BATCH_SIZE=1000
       - NUM_WORKERS=5
-      - ES_ADDRESS=http://elasticsearch:9200
-      - ES_INDEX=pg_audit_logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,18 +99,12 @@ services:
       dockerfile: ./cmd/consumer/Dockerfile
     container_name: consumer-service
     environment:
-      - PG_HOST=postgres
-      - PG_PORT=5432
-      - PG_USER=postgres
-      - PG_PASSWORD=postgres
-      - PG_DBNAME=auditdb
+      - ES_ADDRESS=http://elasticsearch:9200
+      - ES_INDEX=pg_audit_logs
       - KAFKA_BROKERS=kafka:9092
       - KAFKA_TOPIC=audit-logs
       - KAFKA_GROUP_ID=sync-group
-      - BATCH_SIZE=1000
       - NUM_WORKERS=5
-      - ES_ADDRESS=http://elasticsearch:9200
-      - ES_INDEX=pg_audit_logs
     depends_on:
       elasticsearch:
         condition: service_healthy
