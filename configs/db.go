@@ -15,8 +15,20 @@ func ConnectPostgres() (*sqlx.DB, error) {
 	password := os.Getenv("PG_PASSWORD")
 	dbname := os.Getenv("PG_DBNAME")
 
-	if host == "" || user == "" || password == "" || dbname == "" {
-		return nil, fmt.Errorf("missing required Postgres environment variables")
+	if host == "" {
+		return nil, fmt.Errorf("missing PG_HOST environment variable")
+	}
+
+	if user == "" {
+		return nil, fmt.Errorf("missing PG_USER environment variable")
+	}
+
+	if password == "" {
+		return nil, fmt.Errorf("missing PG_PASSWORD environment variable")
+	}
+
+	if dbname == "" {
+		return nil, fmt.Errorf("missing PG_DBNAME environment variable")
 	}
 
 	if port == "" {
